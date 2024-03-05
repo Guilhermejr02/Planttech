@@ -1,0 +1,28 @@
+// Define o pino usado para a leitura analógica
+const int sensorPin = A0;
+
+// Define a faixa de valores para a umidade do solo
+const int HumidadeMinima = 100;      // Umidade mínima
+const int HumidadeMaxima = 0;    // Umidade máxima
+const int valorMinimo = 569;        // Valor mínimo lido no pino analógico
+const int valorMaximo = 1024;     // Valor máximo lido no pino analógico
+
+void setup() {
+  // Inicializa a comunicação serial
+  Serial.begin(115200);
+}
+
+void loop() {
+  // Lê o valor analógico do sensor
+  int sensorValue = analogRead(sensorPin);
+
+  // Converte o valor lido para a umidade do solo na faixa especificada
+  int Humidade = map(sensorValue, valorMinimo, valorMaximo, HumidadeMinima, HumidadeMaxima);
+
+  // Exibe a umidade do solo
+  Serial.print("Umidade do solo: ");
+  Serial.print(Humidade);
+  Serial.println("%");
+
+  delay(1000);
+}

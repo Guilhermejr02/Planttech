@@ -1,0 +1,263 @@
+#include <ESP8266WiFi.h>
+#include "Adafruit_MQTT.h"
+#include "Adafruit_MQTT_Client.h"
+
+
+#define WLAN_SSID         "TP-Link_C761"
+#define WLAN_PASS         "36324323"
+
+#define IO_SERVER        "io.adafruit.com"
+#define IO_SERVERPORT    1883                   // use 8883 for SSL
+//#define IO_USERNAME      "Robotgamert324"
+//#define IO_KEY           "aio_lVVw38Bz0OSgAaQDydTK298MMhUR"
+#define IO_USERNAME  "Plantt"
+#define IO_KEY       "aio_tWyf56yS6o5n56wC6CMfYtW3Ku99"
+
+WiFiClient client;
+Adafruit_MQTT_Client mqtt(&client, IO_SERVER, IO_SERVERPORT, IO_USERNAME, IO_KEY);
+
+Adafruit_MQTT_Publish humidadeFeed = Adafruit_MQTT_Publish(&mqtt, IO_USERNAME "/feeds/humidade");
+Adafruit_MQTT_Publish temperaturaFeed = Adafruit_MQTT_Publish(&mqtt, IO_USERNAME "/feeds/temperatura");
+
+Adafruit_MQTT_Publish humidadesoloFeed = Adafruit_MQTT_Publish(&mqtt, IO_USERNAME "/feeds/humidadesolo");
+Adafruit_MQTT_Publish temperaturaidealFeed = Adafruit_MQTT_Publish(&mqtt, IO_USERNAME "/feeds/temperaturaideal");
+Adafruit_MQTT_Publish humidadeidealarFeed = Adafruit_MQTT_Publish(&mqtt, IO_USERNAME "/feeds/humidadeidealar");
+
+Adafruit_MQTT_Publish BombaFeed = Adafruit_MQTT_Publish(&mqtt, IO_USERNAME "/feeds/Bomba");
+
+
+//------------------------------------------------------------------------------------------------------------
+
+#include <Wire.h> // Biblioteca utilizada para fazer a comunicação com o I2C
+#include <LiquidCrystal_I2C.h> // Biblioteca utilizada para fazer a comunicação com o display 20x4 
+
+#define col 16 // Serve para definir o numero de colunas do display utilizado
+#define lin  2 // Serve para definir o numero de linhas do display utilizado
+#define ende  0x27 // Serve para definir o endereço do display.
+
+LiquidCrystal_I2C lcd(ende,col,lin); // Chamada da funcação LiquidCrystal para ser usada com o I2C
+
+//------------------------------------------------------------------------------------------------------------
+
+// Define o pino usado para a leitura analógica
+const int sensorPin = A0;
+
+// Define a faixa de valores para a umidade do solo
+const int HumidadeMinima = 100;      // Umidade mínima
+const int HumidadeMaxima = 0;    // Umidade máxima
+const int valorMinimo = 569;        // Valor mínimo lido no pino analógico
+const int valorMaximo = 1024;     // Valor máximo lido no pino analógico
+
+//------------------------------------------------------------------------------------------------------------
+
+#include <DHT.h>
+
+#define DHTPIN 2      // Pino de dados do sensor DHT11
+#define DHTTYPE DHT11    // Tipo do sensor DHT (DHT11)
+
+DHT dht(DHTPIN, DHTTYPE);
+
+//------------------------------------------------------------------------------------------------------------
+
+unsigned long startTime = 0; // Tempo inicial
+unsigned long currentTime = 0; // Tempo atual
+unsigned long elapsedSeconds = 0; // Segundos decorridos
+
+int pinBomba = D5; // Pino da bomba de água
+
+unsigned long currentTime2 = 0; // Armazena o tempo atual
+unsigned long previousTime = 0; // Armazena o tempo anterior
+unsigned long delayDuration = 0; // Duração do atraso em milissegundos (0 segundos)
+
+//------------------------------------------------------------------------------------------------------------
+
+void setup() {
+  
+  lcd.init(); // Serve para iniciar a comunicação com o display já conectado
+  lcd.backlight(); // Serve para ligar a luz do display
+  lcd.clear(); // Serve para limpar a tela do display
+
+//--------------------------------------------------------------------------------------------------------------
+
+  WiFi.begin(WLAN_SSID, WLAN_PASS);
+
+    while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    lcd. setCursor(1,0);
+    lcd.print("Conectando WF");
+    delay(1000);
+    lcd.clear();
+  }
+  lcd.clear();
+  lcd.print("Conectado WF");
+  delay(1000); 
+  lcd.clear(); 
+  MQTT_connect();
+
+//--------------------------------------------------------------------------------------------------------------
+
+  dht.begin();
+
+//--------------------------------------------------------------------------------------------------------------
+
+  startTime = millis(); // Armazena o tempo inicial
+
+//--------------------------------------------------------------------------------------------------------------
+
+ pinMode(pinBomba, OUTPUT);
+
+//------------------------------------------------------------------------------------------------------------
+
+}
+void MQTT_connect() {
+  int8_t ret;
+
+  while ((ret = mqtt.connect()) != 0) {
+    Serial.println(mqtt.connectErrorString(ret));
+    lcd. setCursor(1,0); // Coloca o cursor do display na coluna 1 e linha 1
+    lcd.print("Erro WF");
+    mqtt.disconnect();
+    delay(1000);
+  }
+}
+
+//--------------------------------------------------------------------------------------------------------------
+
+  void loop() {
+
+  MQTT_connect();
+
+//--------------------------------------------------------------------------------------------------------------
+
+  // Lê o valor analógico do sensor
+  int sensorValue = analogRead(sensorPin);
+
+  // Converte o valor lido para a umidade do solo na faixa especificada
+  int humidadesolo = map(sensorValue, valorMinimo, valorMaximo, HumidadeMinima, HumidadeMaxima);
+
+//--------------------------------------------------------------------------------------------------------------
+
+  float temperatura = dht.readTemperature();     // Lê a temperatura em graus Celsius
+  float humidade = dht.readHumidity();           // Lê a umidade relativa 
+
+//--------------------------------------------------------------------------------------------------------------
+unsigned long currentTime2 = millis(); // Obtém o tempo atual
+unsigned long delayDuration = 2000;
+
+  lcd.clear(); 
+
+// Verifica se o tempo de espera foi alcançado
+  if (currentTime2 - previousTime >= delayDuration) {
+    lcd. setCursor(1,0); // Coloca o cursor do display na coluna 1 e linha 1
+    lcd.print("Umi solo: "); // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
+    lcd.print(humidadesolo);    
+    lcd.print("%"); 
+    previousTime = currentTime;
+  }
+
+    delay(2000);
+    humidadesoloFeed.publish(humidadesolo);
+    lcd.clear(); 
+
+
+  currentTime = millis(); // Obtém o tempo atual
+  elapsedSeconds = (currentTime - startTime) / 1000; // Calcula os segundos decorridos
+
+// Verifica a condição para ativar a bomba de água
+  if (humidadesolo < 2 && elapsedSeconds >= 20){
+  
+  digitalWrite(pinBomba,  LOW );
+   String message = "ON";
+     startTime = currentTime; // Reinicia o tempo inicial
+     delay(1000);
+     startTime = currentTime; // Reinicia o tempo inicial
+     BombaFeed.publish(message.c_str());
+
+  }
+   else if(humidadesolo > 50){
+
+     digitalWrite(pinBomba, HIGH);
+     String message = "OF";
+     delay(1000);
+     startTime = currentTime; // Reinicia o tempo inicial
+     BombaFeed.publish(message.c_str());
+    }
+
+//--------------------------------------------------------------------------------------------------------------
+
+  lcd. setCursor(1,0); // Coloca o cursor do display na coluna 1 e linha 1
+  lcd.print("Temp:"); // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
+    lcd.print(temperatura);    
+  lcd.setCursor(1,1); // Coloca o cursor do display na coluna 1 e linha 1
+  lcd.print("Umi:"); // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1. 
+    lcd.print(humidade);
+
+    delay(2000); 
+    lcd.clear(); 
+
+    if(temperatura >= 25 && temperatura <= 35){
+      lcd.setCursor(1,0);
+      lcd.print("Temp ideal !");
+      delay(2000); 
+      lcd.clear(); 
+      String message = "Temperatura ideal";
+      delay(500);
+      temperaturaidealFeed.publish(message.c_str());
+    }
+
+ else if(temperatura < 25){   
+    lcd.setCursor(1,0);
+    lcd.print("Baixa temp");
+     delay(2000); 
+     lcd.clear(); 
+      String message = "Baixa temperatura";
+      delay(500);
+      temperaturaidealFeed.publish(message.c_str());
+  }
+
+
+ else if(temperatura > 35){
+    lcd.setCursor(1,0);
+    lcd.print("Alta temp");
+    delay(2000); 
+    lcd.clear(); 
+    String message = "Alta temperatura";
+    delay(500);
+    temperaturaidealFeed.publish(message.c_str());
+  }
+
+    if(humidade >= 20 && humidade <= 50){
+      lcd.setCursor(1,0);
+      lcd.print("Umi Ar ideal !");
+      delay(2000); 
+      lcd.clear(); 
+      String message = "Umi Ar ideal";
+      delay(500);
+     humidadeidealarFeed.publish(message.c_str());
+    }
+
+    else if(humidade > 50){
+    lcd.setCursor(1,0);
+    lcd.print("Alta Umi Ar");
+    delay(2000); 
+    lcd.clear(); 
+    String message = "Alta Umi Ar";
+    delay(500);
+    humidadeidealarFeed.publish(message.c_str());
+  }
+
+  
+ else if(humidade < 20){   
+    lcd.setCursor(1,0);
+    lcd.print("Baixa Umi Ar");
+     delay(2000); 
+     lcd.clear(); 
+      String message = "Baixa Umi Ar";
+      delay(500);
+      humidadeidealarFeed.publish(message.c_str());
+  }
+
+  temperaturaFeed.publish(temperatura);
+  delay(500);
+  humidadeFeed.publish(humidade);
+}

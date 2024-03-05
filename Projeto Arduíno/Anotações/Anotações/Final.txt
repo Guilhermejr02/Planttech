@@ -1,0 +1,189 @@
+#include <ESP8266WiFi.h>
+#include "Adafruit_MQTT.h"
+#include "Adafruit_MQTT_Client.h"
+
+
+#define WLAN_SSID         "SENAI-LABS"
+#define WLAN_PASS         "senai@2022#*@"
+
+#define AIO_SERVER        "io.adafruit.com"
+#define AIO_SERVERPORT    1883                   // use 8883 for SSL
+#define AIO_USERNAME      "Robotgamert324"
+#define AIO_KEY           "aio_uvPF459kBrOpcfeE1C40z0nHAq7M"
+
+WiFiClient client;
+Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
+
+Adafruit_MQTT_Publish humidadeFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/humidade");
+Adafruit_MQTT_Publish temperaturaFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperatura");
+Adafruit_MQTT_Publish humidadesoloFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/humidadesolo");
+Adafruit_MQTT_Publish temperaturaidealFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperaturaideal");
+Adafruit_MQTT_Publish baixatemperaturaFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/baixatemperatura");
+Adafruit_MQTT_Publish altatemperaturaFeed = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/altatemperatura");
+
+//------------------------------------------------------------------------------------------------------------
+
+#include <Wire.h> // Biblioteca utilizada para fazer a comunicação com o I2C
+#include <LiquidCrystal_I2C.h> // Biblioteca utilizada para fazer a comunicação com o display 20x4 
+
+#define col 16 // Serve para definir o numero de colunas do display utilizado
+#define lin  2 // Serve para definir o numero de linhas do display utilizado
+#define ende  0x27 // Serve para definir o endereço do display.
+
+LiquidCrystal_I2C lcd(ende,col,lin); // Chamada da funcação LiquidCrystal para ser usada com o I2C
+
+//------------------------------------------------------------------------------------------------------------
+
+// Define o pino usado para a leitura analógica
+const int sensorPin = A0;
+
+// Define a faixa de valores para a umidade do solo
+const int HumidadeMinima = 100;      // Umidade mínima
+const int HumidadeMaxima = 0;    // Umidade máxima
+const int valorMinimo = 569;        // Valor mínimo lido no pino analógico
+const int valorMaximo = 1024;     // Valor máximo lido no pino analógico
+
+//------------------------------------------------------------------------------------------------------------
+
+#include <DHT.h>
+
+#define DHTPIN 2      // Pino de dados do sensor DHT11
+#define DHTTYPE DHT11    // Tipo do sensor DHT (DHT11)
+
+DHT dht(DHTPIN, DHTTYPE);
+
+//------------------------------------------------------------------------------------------------------------
+
+const int pinRelay = D5;
+
+//------------------------------------------------------------------------------------------------------------
+
+void MQTT_connect() {
+  int8_t ret;
+
+  while ((ret = mqtt.connect()) != 0) {
+    Serial.println(mqtt.connectErrorString(ret));
+    Serial.println("Tentando novamente em 5 segundos...");
+    mqtt.disconnect();
+    delay(5000);
+  }
+
+  Serial.println("Conectado ao servidor MQTT!");
+}
+
+void setup() {
+
+  WiFi.begin(WLAN_SSID, WLAN_PASS);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Conectando ao WiFi...");
+  }
+
+  Serial.println("Conectado ao WiFi!");
+
+  MQTT_connect();
+
+//--------------------------------------------------------------------------------------------------------------
+
+  dht.begin();
+
+//--------------------------------------------------------------------------------------------------------------
+
+  lcd.init(); // Serve para iniciar a comunicação com o display já conectado
+  lcd.backlight(); // Serve para ligar a luz do display
+  lcd.clear(); // Serve para limpar a tela do display
+//--------------------------------------------------------------------------------------------------------------
+
+  pinMode(pinRelay, OUTPUT);
+
+//------------------------------------------------------------------------------------------------------------
+}
+
+  void loop() {
+
+  MQTT_connect();
+
+//--------------------------------------------------------------------------------------------------------------
+
+  // Lê o valor analógico do sensor
+  int sensorValue = analogRead(sensorPin);
+
+  // Converte o valor lido para a umidade do solo na faixa especificada
+  int Humidadesolo = map(sensorValue, valorMinimo, valorMaximo, HumidadeMinima, HumidadeMaxima);
+
+//--------------------------------------------------------------------------------------------------------------
+  
+  float temperatura = dht.readTemperature();     // Lê a temperatura em graus Celsius
+  float humidade = dht.readHumidity();           // Lê a umidade relativa 
+
+  lcd.clear();
+
+  lcd. setCursor(1,0); // Coloca o cursor do display na coluna 1 e linha 1
+  lcd.print("Temp:"); // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
+    lcd.print(temperatura);    
+  lcd.setCursor(1,1); // Coloca o cursor do display na coluna 1 e linha 1
+  lcd.print("Umi:"); // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1. 
+    lcd.print(humidade);
+
+    delay(2500); 
+    lcd.clear(); 
+
+    if(temperatura >= 25 && temperatura <= 35){
+      lcd.setCursor(1,0);
+      lcd.print("Temp ideal !");
+      delay(2500); 
+      lcd.clear(); 
+      String message = "Temperatura ideal";
+      temperaturaidealFeed.publish(message.c_str());
+    }
+
+
+ else if(temperatura < 25){   
+    lcd.setCursor(1,0);
+    lcd.print("Baixa temp");
+     delay(2500); 
+     lcd.clear(); 
+      String message = "Baixa temperatura";
+      temperaturaidealFeed.publish(message.c_str());
+  }
+
+
+ else if(temperatura > 35){
+    lcd.setCursor(1,0);
+    lcd.print("Alta temp");
+    delay(2500); 
+    lcd.clear(); 
+    String message = "Alta temperatura";
+    temperaturaidealFeed.publish(message.c_str());
+  }
+
+  humidadeFeed.publish(humidade);
+  temperaturaFeed.publish(temperatura);
+
+//--------------------------------------------------------------------------------------------------------------
+
+  lcd.clear(); 
+
+  lcd.setCursor(1,0);
+  lcd.print("Umi Solo:");  
+  lcd.print(Humidadesolo);
+  lcd.print("%");
+
+  humidadesoloFeed.publish(Humidadesolo);
+
+  delay(2500); 
+
+//--------------------------------------------------------------------------------------------------------------
+
+  if (Humidadesolo < 2){
+
+    digitalWrite(pinRelay, LOW);
+  
+
+    }else{
+
+     digitalWrite(pinRelay, HIGH);
+
+    }
+}

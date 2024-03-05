@@ -1,0 +1,39 @@
+#include <DHT.h>
+
+#define DHTPIN 2         // Pino de dados do sensor DHT11
+#define DHTTYPE DHT11    // Tipo do sensor DHT (DHT11)
+
+#include <Wire.h> // Biblioteca utilizada para fazer a comunicação com o I2C
+#include <LiquidCrystal_I2C.h> // Biblioteca utilizada para fazer a comunicação com o display 20x4 
+
+#define col 16 // Serve para definir o numero de colunas do display utilizado
+#define lin  2 // Serve para definir o numero de linhas do display utilizado
+#define ende  0x27 // Serve para definir o endereço do display.
+
+LiquidCrystal_I2C lcd(ende,col,lin); // Chamada da funcação LiquidCrystal para ser usada com o I2C
+
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+
+  lcd.init(); // Serve para iniciar a comunicação com o display já conectado
+  lcd.backlight(); // Serve para ligar a luz do display
+  lcd.clear(); // Serve para limpar a tela do display
+}
+
+void loop() {
+  float temperatura = dht.readTemperature();     // Lê a temperatura em graus Celsius
+  float humidade = dht.readHumidity();           // Lê a umidade relativa 
+
+  lcd.setCursor(1,0); // Coloca o cursor do display na coluna 1 e linha 1
+  lcd.print("Temp:"); // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
+    lcd.print(temperatura);
+  delay(3000);  // delay de 5 segundos com todas as mensagens na tela
+  lcd.clear(); // Limpa o display até o loop ser reiniciado
+  lcd.setCursor(1,1); // Coloca o cursor do display na coluna 1 e linha 1
+  lcd.print("Humi:"); // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1. 
+    lcd.print(humidade);
+}
+
