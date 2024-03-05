@@ -1,0 +1,26 @@
+#include <DHT.h>
+
+#define DHTPIN 2         // Pino de dados do sensor DHT11
+#define DHTTYPE DHT11    // Tipo do sensor DHT (DHT11)
+
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+}
+
+void loop() {
+  float temperatura = dht.readTemperature();     // Lê a temperatura em graus Celsius
+  float humidade = dht.readHumidity();           // Lê a umidade relativa
+
+  Serial.print("Temperatura: ");
+  Serial.print(temperatura);
+  Serial.print(" Graus");
+
+  Serial.print("   Humidade: ");
+  Serial.print(humidade);
+  Serial.println(" %");
+
+  delay(2000);  // Aguarda 2 segundos antes da próxima leitura
+}

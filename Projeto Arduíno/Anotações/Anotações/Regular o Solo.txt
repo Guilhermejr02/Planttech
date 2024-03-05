@@ -1,0 +1,18 @@
+// Define o pino usado para a leitura analógica
+const int sensorPin = A0;
+
+void setup() {
+  // Inicializa a comunicação serial
+  Serial.begin(9600);
+}
+
+void loop() {
+  // Lê o valor analógico do sensor
+  int sensorValue = analogRead(sensorPin);
+
+  // Exibe o valor lido
+  Serial.print("Valor do sensor de umidade do solo: ");
+  Serial.println(sensorValue);
+
+  delay(1000);
+}

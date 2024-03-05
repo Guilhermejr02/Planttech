@@ -1,0 +1,38 @@
+#include <Wire.h> // Biblioteca utilizada para fazer a comunicação com o I2C
+#include <LiquidCrystal_I2C.h> // Biblioteca utilizada para fazer a comunicação com o display 20x4 
+
+#define col 16 // Serve para definir o numero de colunas do display utilizado
+#define lin  2 // Serve para definir o numero de linhas do display utilizado
+#define ende  0x27 // Serve para definir o endereço do display.
+
+LiquidCrystal_I2C lcd(ende,col,lin); // Chamada da funcação LiquidCrystal para ser usada com o I2C
+
+// Define o pino usado para a leitura analógica
+const int sensorPin = A0;
+
+// Define a faixa de valores para a umidade do solo
+const int HumidadeMinima = 100;      // Umidade mínima
+const int HumidadeMaxima = 0;    // Umidade máxima
+const int valorMinimo = 569;        // Valor mínimo lido no pino analógico
+const int valorMaximo = 1024;     // Valor máximo lido no pino analógico
+
+
+void setup() //Incia o display
+{  
+  lcd.init(); // Serve para iniciar a comunicação com o display já conectado
+  lcd.backlight(); // Serve para ligar a luz do display
+  lcd.clear(); // Serve para limpar a tela do display
+
+}
+void loop() 
+{
+ // Lê o valor analógico do sensor
+  int sensorValue = analogRead(sensorPin);
+
+  // Converte o valor lido para a umidade do solo na faixa especificada
+  int Humidade = map(sensorValue, valorMinimo, valorMaximo, HumidadeMinima, HumidadeMaxima);
+  
+  lcd.setCursor(1,0);
+  lcd.print("Humi Solo:");  
+  lcd.print(Humidade);
+  lcd.print("%"); 
